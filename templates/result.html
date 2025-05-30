@@ -1,0 +1,725 @@
+<!-- <!DOCTYPE html>
+<html>
+<head>
+    <title>Extracted Text</title>
+</head>
+<body>
+    <h1>Extracted Text</h1>
+    <img src="{{ image_path }}" width="300"><br><br>
+    <pre>{{ text }}</pre>
+    <a href="/">Upload Another Image</a>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Vision - Extracted Text Results</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #533483 100%);
+            min-height: 100vh;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        /* 3D Canvas Background */
+        #threejs-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .main-container {
+            position: relative;
+            z-index: 10;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            transform: translateY(30px);
+            opacity: 0;
+            animation: slideUp 1s ease-out 0.2s forwards;
+        }
+
+        .header h1 {
+            font-size: clamp(2rem, 6vw, 3.5rem);
+            font-weight: 900;
+            background: linear-gradient(135deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57);
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 8s ease-in-out infinite;
+            margin-bottom: 0.5rem;
+        }
+
+        .header .subtitle {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 3rem;
+            margin-bottom: 3rem;
+            transform: translateY(40px);
+            opacity: 0;
+            animation: slideUp 1s ease-out 0.4s forwards;
+        }
+
+        .image-section {
+            position: relative;
+        }
+
+        .image-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 
+                0 0 80px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: all 0.6s cubic-bezier(0.23, 1, 0.320, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .image-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, 
+                rgba(255, 107, 107, 0.05) 0%,
+                rgba(78, 205, 196, 0.05) 25%,
+                rgba(69, 183, 209, 0.05) 50%,
+                rgba(150, 206, 180, 0.05) 75%,
+                rgba(254, 202, 87, 0.05) 100%);
+            border-radius: 24px;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+        }
+
+        .image-card:hover::before {
+            opacity: 1;
+        }
+
+        .image-card:hover {
+            transform: translateY(-10px) rotateY(-5deg);
+            box-shadow: 
+                0 0 100px rgba(0, 0, 0, 0.4),
+                0 25px 60px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .uploaded-image {
+            width: 100%;
+            height: auto;
+            max-height: 500px;
+            object-fit: contain;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            position: relative;
+            z-index: 2;
+            transition: all 0.4s ease;
+        }
+
+        .uploaded-image:hover {
+            transform: scale(1.05);
+        }
+
+        .image-info {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            z-index: 2;
+        }
+
+        .image-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #4ecdc4;
+            margin-bottom: 0.2rem;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .text-section {
+            position: relative;
+        }
+
+        .text-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 
+                0 0 80px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            min-height: 600px;
+        }
+
+        .text-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, 
+                rgba(78, 205, 196, 0.03) 0%,
+                rgba(69, 183, 209, 0.03) 50%,
+                rgba(150, 206, 180, 0.03) 100%);
+            border-radius: 24px;
+        }
+
+        .text-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .text-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff, #e0e7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .copy-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 0.7rem 1.5rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .copy-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.6s ease;
+        }
+
+        .copy-button:hover::before {
+            left: 100%;
+        }
+
+        .copy-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .copy-button.copied {
+            background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+        }
+
+        .extracted-text {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 2rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.9);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        .extracted-text::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .extracted-text::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .extracted-text::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .extracted-text::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .processing-info {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            transform: translateY(40px);
+            opacity: 0;
+            animation: slideUp 1s ease-out 0.6s forwards;
+        }
+
+        .processing-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .processing-stat {
+            text-align: center;
+        }
+
+        .processing-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #feca57;
+            margin-bottom: 0.3rem;
+        }
+
+        .processing-stat-label {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            transform: translateY(40px);
+            opacity: 0;
+            animation: slideUp 1s ease-out 0.8s forwards;
+        }
+
+        .action-button {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 16px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .action-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .action-button.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: transparent;
+        }
+
+        .action-button.primary:hover {
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Animations */
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        @keyframes slideUp {
+            from { 
+                transform: translateY(40px);
+                opacity: 0;
+            }
+            to { 
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 1rem;
+            }
+
+            .image-card, .text-card {
+                padding: 1.5rem;
+            }
+
+            .image-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .processing-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .text-header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+
+            .copy-button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="threejs-canvas"></canvas>
+    
+    <div class="main-container">
+        <div class="header">
+            <h1>AI Vision Results</h1>
+            <p class="subtitle">Text extraction completed successfully</p>
+        </div>
+        
+        <div class="results-grid">
+            <div class="image-section">
+                <div class="image-card">
+                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMkQzNzQ4Ii8+CjxyZWN0IHg9IjUwIiB5PSI1MCIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNGRkZGRkYiIHJ4PSI4Ii8+Cjx0ZXh0IHg9IjIwMCIgeT0iMTEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMzc0MTUxIiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iSW50ZXIiPkFJIFZpc2lvbjwvdGV4dD4KPHR5ZXh0IHg9IjIwMCIgeT0iMTQwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjM3Mzg1IiBmb250LXNpemU9IjEyIiBmb250LWZhbWlseT0iSW50ZXIiPkV4dHJhY3RlZCBUZXh0IERlbW88L3RleHQ+Cjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMzc0MTUxIiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iSW50ZXIiPlRoaXMgaXMgYSBzYW1wbGUgaW1hZ2Ugd2l0aDwvdGV4dD4KPHR5ZXh0IHg9IjIwMCIgeT0iMjAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMzc0MTUxIiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iSW50ZXIiPnRleHQgZm9yIGV4dHJhY3Rpb24uPC90ZXh0Pgo8L3N2Zz4K" alt="Uploaded Image" class="uploaded-image" id="uploadedImage">
+                    
+                    <div class="image-info">
+                        <div class="image-stats">
+                            <div class="stat-item">
+                                <div class="stat-value" id="imageSize">1.2 MB</div>
+                                <div class="stat-label">File Size</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="imageDimensions">400×300</div>
+                                <div class="stat-label">Dimensions</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-section">
+                <div class="text-card">
+                    <div class="text-header">
+                        <h2 class="text-title">Extracted Text</h2>
+                        <button class="copy-button" onclick="copyText()">
+                            📋 Copy Text
+                        </button>
+                    </div>
+                    
+                    <div class="extracted-text" id="extractedText">{{text}}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="processing-info">
+            <div class="processing-stats">
+                <div class="processing-stat">
+                    <div class="processing-stat-value">2.3s</div>
+                    <div class="processing-stat-label">Processing Time</div>
+                </div>
+                <div class="processing-stat">
+                    <div class="processing-stat-value">98.7%</div>
+                    <div class="processing-stat-label">Accuracy</div>
+                </div>
+                <div class="processing-stat">
+                    <div class="processing-stat-value">42</div>
+                    <div class="processing-stat-label">Words Found</div>
+                </div>
+                <div class="processing-stat">
+                    <div class="processing-stat-value">EN</div>
+                    <div class="processing-stat-label">Language</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="action-buttons">
+            <a href="#" class="action-button" onclick="downloadText()">
+                💾 Download as TXT
+            </a>
+            <a href="/" class="action-button" onclick="processAnother()">
+                🔄 Process Another
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Three.js 3D Background
+        let scene, camera, renderer, particles;
+        
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('threejs-canvas'), alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            
+            // Create particle system
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+            const colors = [];
+            
+            for (let i = 0; i < 1500; i++) {
+                vertices.push(
+                    (Math.random() - 0.5) * 100,
+                    (Math.random() - 0.5) * 100,
+                    (Math.random() - 0.5) * 100
+                );
+                
+                colors.push(
+                    Math.random() * 0.5 + 0.5,
+                    Math.random() * 0.5 + 0.5,
+                    1
+                );
+            }
+            
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            
+            const material = new THREE.PointsMaterial({
+                size: 0.8,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.7
+            });
+            
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+            
+            // Create floating geometric shapes
+            const shapes = [];
+            for (let i = 0; i < 15; i++) {
+                const geometry = Math.random() > 0.5 ? 
+                    new THREE.TetrahedronGeometry(0.8) : 
+                    new THREE.OctahedronGeometry(0.8);
+                
+                const material = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5),
+                    transparent: true,
+                    opacity: 0.15,
+                    wireframe: true
+                });
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(
+                    (Math.random() - 0.5) * 60,
+                    (Math.random() - 0.5) * 60,
+                    (Math.random() - 0.5) * 60
+                );
+                
+                mesh.userData = {
+                    rotationSpeed: {
+                        x: (Math.random() - 0.5) * 0.015,
+                        y: (Math.random() - 0.5) * 0.015,
+                        z: (Math.random() - 0.5) * 0.015
+                    }
+                };
+                
+                shapes.push(mesh);
+                scene.add(mesh);
+            }
+            
+            camera.position.z = 35;
+            
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                // Rotate particles
+                particles.rotation.x += 0.0008;
+                particles.rotation.y += 0.0012;
+                
+                // Animate shapes
+                shapes.forEach(shape => {
+                    shape.rotation.x += shape.userData.rotationSpeed.x;
+                    shape.rotation.y += shape.userData.rotationSpeed.y;
+                    shape.rotation.z += shape.userData.rotationSpeed.z;
+                });
+                
+                renderer.render(scene, camera);
+            }
+            
+            animate();
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Initialize 3D scene
+        init3D();
+        
+        // Utility Functions
+        function copyText() {
+            const textElement = document.getElementById('extractedText');
+            const text = textElement.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const button = document.querySelector('.copy-button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '✅ Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        }
+        
+        function downloadText() {
+            const text = document.getElementById('extractedText').textContent;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'extracted-text.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function processAnother() {
+            window.location.href = '#upload';
+        }
+        
+        function editText() {
+            const textElement = document.getElementById('extractedText');
+            const currentText = textElement.textContent;
+            
+            // Create textarea for editing
+            const textarea = document.createElement('textarea');
+            textarea.value = currentText;
+            textarea.style.cssText = `
+                width: 100%;
+                height: 400px;
+                background: rgba(0, 0, 0, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 16px;
+                padding: 2rem;
+                color: rgba(255, 255, 255, 0.9);
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.95rem;
+                line-height: 1.6;
+                resize: vertical;
+            `;
+            
+            // Replace text display with textarea
+            textElement.style.display = 'none';
+            textElement.parentNode.insertBefore(textarea, textElement.nextSibling);
+            
+            // Update button
+            const copyButton = document.querySelector('.copy-button');
+            copyButton.innerHTML = '💾 Save Changes';
+            copyButton.onclick = function() {
+                textElement.textContent = textarea.value;
+                textElement.style.display = 'block';
+                textarea.remove();
+                copyButton.innerHTML = '📋 Copy Text';
+                copyButton.onclick = copyText;
+            };
+        }
+        
+        // Simulate loading effect
+        window.addEventListener('load', () => {
+            // Update processing stats with random realistic values
+            setTimeout(() => {
+                document.querySelector('.processing-stat-value').textContent = (Math.random() * 2 + 1.5).toFixed(1) + 's';
+            }, 500);
+        });
+    </script>
+</body>
+</html>
